@@ -11,3 +11,8 @@ output "distribution_id" {
 output "bucket_name" {
   value = aws_s3_bucket.site.id
 }
+
+output "deploy_role_arn" {
+  description = "Role the GitHub workflow assumes"
+  value       = aws_iam_role.github_deploy.arn
+}

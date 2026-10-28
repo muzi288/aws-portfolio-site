@@ -9,3 +9,9 @@ variable "bucket_name" {
   type        = string
   default     = "muzi-portfolio-tf-001"
 }
+
+variable "github_repo" {
+  description = "GitHub repository allowed to deploy, as owner/name"
+  type        = string
+  default     = "muzi288/aws-portfolio-site"
+}
