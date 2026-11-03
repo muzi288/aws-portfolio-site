@@ -15,3 +15,9 @@ variable "github_repo" {
   type        = string
   default     = "muzi288/aws-portfolio-site"
 }
+
+variable "github_subject" {
+  description = "Exact OIDC subject GitHub sends for the deploy workflow (includes numeric owner and repo IDs)"
+  type        = string
+  default     = "repo:muzi288@70324548/aws-portfolio-site@1437461895:ref:refs/heads/main"
+}
