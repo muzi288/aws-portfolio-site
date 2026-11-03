@@ -11,10 +11,12 @@ resource "aws_s3_bucket_public_access_block" "site" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_object" "index" {
-  bucket       = aws_s3_bucket.site.id
-  key          = "index.html"
-  source       = "${path.module}/../site/index.html"
-  etag         = filemd5("${path.module}/../site/index.html")
-  content_type = "text/html"
+# Site content is now deployed by the GitHub Actions pipeline.
+# Terraform stops tracking the object but must not delete it.
+removed {
+  from = aws_s3_object.index
+
+  lifecycle {
+    destroy = false
+  }
 }
