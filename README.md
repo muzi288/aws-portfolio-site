@@ -1,87 +1,101 @@
-# Portfolio on AWS
+# Muziwakhe Zulu · Engineering portfolio
 
-A static portfolio site served from a private S3 bucket through CloudFront, with all infrastructure defined in Terraform and deployed by GitHub Actions without any stored AWS credentials.
+Full-stack engineering, AI integrations, and cloud delivery. This portfolio presents my professional work and is itself an infrastructure project: a static site on AWS with private S3 storage, CloudFront delivery, Terraform, and GitHub Actions OIDC deployment.
 
-**Live:** https://d2mscfs9lp8hqf.cloudfront.net
+[View the portfolio](https://d2mscfs9lp8hqf.cloudfront.net) · [LinkedIn](https://www.linkedin.com/in/muziwakhe-zulu/) · [Email](mailto:mzulu2204@gmail.com)
+
+## Selected professional work
+
+- **InvoiceIQ:** multi-tenant invoice extraction with FastAPI, React, Claude/Gemini, Celery/Redis, PostgreSQL Row Level Security, Docker, and Azure deployment. Private source repository.
+- **PriceWatch:** React/TypeScript retail intelligence with nine AWS Lambda handlers, Cognito-authenticated API Gateway, Bedrock streaming reports, AWS CDK, and GitHub Actions.
+- **Enterprise HRIS at Zimworx:** phased delivery, recruitment/CRM/employee integrations, SSO, workforce reporting, and Terraform-managed AWS infrastructure. Proprietary implementation.
+
+These are professional projects, separate from this repository. This repository contains the portfolio and its AWS infrastructure.
+
+## What this repository demonstrates
+
+- Semantic, responsive HTML/CSS with keyboard focus states, a skip link, reduced-motion support, and a print layout. No JavaScript is required to use the site.
+- No framework runtime, package dependencies, external fonts, or build step. The application screenshot is a separately cached asset rather than embedded base64.
+- A private S3 bucket with Block Public Access and CloudFront Origin Access Control (OAC).
+- Infrastructure as code and short-lived AWS deployment credentials through GitHub OIDC.
+- Automated checks for broken local assets and fragment links before deployment.
+
+## Preview and check locally
+
+Requires Node.js 22 or later. No dependency installation is needed.
+
+```sh
+node scripts/check-site.mjs
+node scripts/preview.mjs
+```
+
+Open [localhost:4173](http://localhost:4173). Stop the preview with Ctrl+C. The server binds only to loopback.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    V[Visitor] -->|HTTPS| CF[CloudFront]
-    CF -->|"signed request (OAC)"| S3[("Private S3 bucket")]
-    D[git push to main] --> GH[GitHub Actions]
-    GH -->|"OIDC token"| STS[AWS STS]
-    STS -->|"temporary credentials"| GH
-    GH -->|"s3 sync"| S3
-    GH -->|"invalidate cache"| CF
+    Visitor -->|HTTPS| CloudFront
+    CloudFront -->|Signed requests with OAC| S3[Private S3 bucket]
+    Push[Push site changes to main] --> Check[Validate site]
+    Check --> Actions[GitHub Actions]
+    Actions -->|OIDC token| STS[AWS STS]
+    STS -->|Temporary credentials| Actions
+    Actions -->|Sync site files| S3
+    Actions -->|Invalidate cached content| CloudFront
+    Terraform -->|Provision| S3
+    Terraform -->|Provision| CloudFront
+    Terraform -->|Configure trust and permissions| IAM[Deploy role]
 ```
 
-## How it works
-
-1. The site files live in a **private** S3 bucket with Block Public Access on.
-2. **CloudFront** serves them over HTTPS and caches copies at edge locations.
-3. **Origin Access Control (OAC)** lets CloudFront sign its requests to S3. The bucket policy allows `s3:GetObject` only for requests coming from this one distribution, so the bucket cannot be read directly.
-4. On every push to `main` that changes `site/`, a **GitHub Actions** workflow assumes an IAM role through **OIDC**, syncs the files to S3, and invalidates the CloudFront cache.
-
-## Design decisions
-
-| Decision | Why |
-|---|---|
-| Private bucket + CloudFront + OAC | A public bucket website endpoint is HTTP only, gives no control over access, and is a common source of leaks. |
-| Bucket policy condition on the distribution ARN | Without it, any CloudFront distribution in any account could read the bucket (confused deputy problem). |
-| OIDC instead of an access key in GitHub | No long-lived credential to leak. The role hands out temporary credentials that expire. |
-| Trust policy pinned to the exact repo and branch | GitHub issues valid tokens to every repository. The `sub` condition limits the role to this repo's `main` branch, and uses GitHub's immutable numeric owner and repo IDs. |
-| Least-privilege deploy role | It can list and write one bucket and invalidate one distribution. Nothing else. |
-| Terraform owns infrastructure, the pipeline owns content | Two tools managing the same object would overwrite each other. |
-| No WAF | A static site behind a private bucket has a small attack surface, and WAF adds recurring cost. Shield Standard is included with CloudFront. |
+CloudFront signs origin requests; the bucket policy restricts reads to the distribution ARN. The deployment role can list the site bucket, write/delete its objects, and invalidate this distribution. Terraform owns infrastructure; the deployment workflow owns site content.
 
 ## Repository layout
 
+```text
+site/
+  index.html            Portfolio content and metadata
+  styles.css            Responsive design and print styles
+  assets/               Application screenshot and favicon
+scripts/
+  check-site.mjs        Dependency-free local reference checks
+  preview.mjs           Loopback-only static preview
+terraform/              S3, CloudFront, OAC, IAM/OIDC, outputs
+.github/workflows/      Pull request validation and deployment
+docs/
+  content-guide.md       Content maintenance and accuracy notes
+  github-profile.md      Optional GitHub profile README copy
 ```
-site/                  the website (index.html)
-terraform/             infrastructure as code
-  providers.tf         AWS provider, default tags
-  variables.tf         region, bucket name, GitHub repo and OIDC subject
-  s3.tf                bucket and public access block
-  cloudfront.tf        distribution and origin access control
-  bucket_policy.tf     policy allowing only this distribution
-  github_oidc.tf       OIDC provider, deploy role, deploy permissions
-  outputs.tf           domain, distribution ID, bucket, role ARN
-.github/workflows/     deploy pipeline
-```
 
-## Deploy it yourself
+## Deploy to your AWS account
 
-1. Install Terraform and the AWS CLI, then sign in (`aws login`).
-2. In `terraform/`, set `bucket_name`, `github_repo`, and `github_subject` for your own account and repo.
-3. Run `terraform init`, `terraform plan`, `terraform apply`.
-4. In your GitHub repo, add repository **variables** `AWS_DEPLOY_ROLE_ARN`, `BUCKET_NAME`, and `DISTRIBUTION_ID` from `terraform output`.
-5. Push a change under `site/` and watch the Actions tab.
+Requires Terraform, AWS CLI, and an authenticated AWS identity with permission to provision the resources. Review all Terraform inputs and the plan before applying.
 
-## Cost
+1. Set `bucket_name`, `github_repo`, and `github_subject` in your own local `.tfvars` file. Use a globally unique bucket name. The supplied OIDC subject is specific to this repository; set the **exact subject emitted by your own GitHub configuration**. `github_repo` is descriptive and does not construct or restrict the trust policy; `github_subject` is the enforced condition.
+2. Run `terraform init`, `terraform plan`, and `terraform apply` inside `terraform/`.
+3. Set GitHub repository variables `AWS_DEPLOY_ROLE_ARN`, `BUCKET_NAME`, and `DISTRIBUTION_ID` from `terraform output`.
+4. Push changes under `site/` or the validation script to `main`, or run the deploy workflow manually. Pull requests validate without AWS credentials.
+5. Use the `cloudfront_domain_name` output for your site URL. Update the canonical and Open Graph URLs in `site/index.html` if hosting a copy.
 
-CloudFront and S3 are pay-as-you-go. At portfolio traffic the bill is small, and a budget alert is set on the account. No NAT gateways, load balancers, or WAF are used.
+Deployment uses `s3 sync --delete`, so the destination bucket must be dedicated to the site. Do not store unrelated objects in it.
+
+## Design decisions and limits
+
+- **Private origin:** S3 is not exposed as a public website endpoint. CloudFront handles HTTPS and edge caching.
+- **OIDC:** the trust policy checks audience and exact subject. No long-lived AWS access keys are stored in the workflow.
+- **Buildless frontend:** small operational footprint, readable source, and no client-side hydration or package supply chain for the page.
+- **Local Terraform state:** current configuration has no remote backend. For shared infrastructure management, configure a protected remote backend and state locking. Never commit state or credentials.
+- **Action versions:** workflows currently use major-version tags. Pin reviewed commit SHAs for stronger supply-chain controls.
+- **Domain and cost:** uses a CloudFront domain; no custom domain or ACM certificate is configured. S3 and CloudFront incur usage-based charges. This repository does not provision a budget alert or WAF.
+
+## Content maintenance
+
+See [the content guide](docs/content-guide.md) for dates, claim wording, and update rules. Keep private employer code and personal documents outside the public repository. Education year ranges do not assert that a degree has been awarded.
 
 ## Tear down
 
-The pipeline uploads files that Terraform does not track, so empty the bucket first or the destroy will fail:
+Deleting the infrastructure removes the live site. First empty **only your dedicated portfolio bucket**, then run `terraform destroy` from `terraform/`. The pipeline uploads objects that Terraform does not track, so destroying a non-empty bucket will fail. Verify the AWS account and bucket before deletion.
 
-```bash
-aws s3 rm "s3://<bucket-name>" --recursive
-cd terraform && terraform destroy
-```
+## Reuse
 
-## What I learned
-
-- A role has no credentials of its own. Something assumes it and gets temporary ones, which is why trust policies and permissions policies are separate.
-- GitHub's OIDC `sub` claim now carries numeric owner and repository IDs. I found this by printing the token claims when the first role assumption failed.
-- `terraform plan` before `apply` caught a handover that would have deleted the live page, which a `removed` block with `destroy = false` avoided.
-- Console settings and Terraform produced identical distribution configs, but only the code is repeatable and reviewable.
-
-## Known limitations and next steps
-
-- `index.html` embeds its images, making it large. Moving images out lets CloudFront cache them separately.
-- Terraform state is local. A team setup would use a remote backend (S3 with locking).
-- No custom domain yet (Route 53 and ACM).
-- Workflow actions are pinned to major versions, not commit hashes.
+No license has been added. Ask before reusing personal content, screenshots, or source; linked professional projects have their own terms.

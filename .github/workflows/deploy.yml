@@ -3,7 +3,7 @@ name: Deploy site
 on:
   push:
     branches: [main]
-    paths: ["site/**"]
+    paths: ["site/**", "scripts/check-site.mjs", ".github/workflows/deploy.yml"]
   workflow_dispatch:
 
 permissions:
@@ -20,6 +20,13 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check site references before deploying
+        run: node scripts/check-site.mjs
 
       - name: Assume the deploy role through OIDC
         uses: aws-actions/configure-aws-credentials@v4
